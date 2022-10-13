@@ -1,31 +1,35 @@
-const cheerio = require('cheerio');
 const axios = require('axios');
+const cheerio = require('cheerio');
 
-async function main() {
-    const client = axios.create({
-        headers: {
-            'User-Agent':
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36'
-        }
-    })
-    const res1 = await client.get(
-        'https://www.mcst.go.kr/kor/s_culture/festival/festivalList.jsp?pSeq=&pRo=&pCurrentPage=1&pOrder=01up&pPeriod=&fromDt=&toDt=&pSido=01&pSearchType=01&pSearchWord='
-    );
-
-
-    const $ = cheerio.load(res.data);
-    const imgs = $('.color01 li img');
-    const titles = $('.color01 li .text .title')
-    const result = {};
-
-    imgs.each((idx, el) => {
-        console.log('mcst.go.kr' + $(el).attr('src'))
-    });
-
-    titles.each((idx, el) => {
-        console.log($(el).text());
-    });
-
+// 'https://www.mcst.go.kr/kor/s_culture/festival/festivalList.jsp?pSeq=&pRo=&pCurrentPage=1&pOrder=01up&pPeriod=&fromDt=&toDt=&pSido=01&pSearchType=01&pSearchWord='
+const getHTML = async () => {
+    try {
+        console.log('came in try block')
+        return await axios.get('https://www.mcst.go.kr/kor/s_culture/festival/festivalList.jsp?pSeq=&pRo=&pCurrentPage=1&pOrder=01up&pPeriod=&fromDt=&toDt=&pSido=01&pSearchType=01&pSearchWord=')
+    } catch (err) {
+        console.log(err);
+    }
 }
 
-main();
+
+const parsing = async () => {
+    console.log('came in parsing func')
+    const html = await getHTML();
+    const $ = cheerio.load(html.data);
+    const $festList = $('.color01 li');
+
+    let festivals = [];
+
+    $festList.each((idx, node) => {
+        festivals.push({
+            title: $(node).find('.title').text(),
+            desc: $(node).find('.ny').text(),
+            detail_infos: $(node).find('.detail_info').text(),
+            link: $(node).find('.go').attr('href')
+        })
+    })
+
+    console.log(festivals)
+}
+
+parsing();
