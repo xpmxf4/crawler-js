@@ -56,34 +56,72 @@ const fillDetailUrlArr = async () => {
 }
 
 const periodToFromTo = (period) => {
-    // res[0] = from, res[1] = to
+    let splitted = period.split('~')
+    let from = splitted[0];
+    let to = splitted[1];
+
     let res = [];
+
     // 1. 2022. 10. 4. ~ 12. 31. 
+    const pattern1 = /^\d{4}. \d{1,2}. \d{1,2}. ~ \d{1,2}. \d{1,2}.$/
     // 2. 2022. 9. 23. ~ 2023. 1. 14.
+    const pattern2 = /^\d{4}. \d{1,2}. \d{1,2}. ~ \d{1,4}. \d{1,2}. \d{1,2}.$/
     // 3. 2022. 10. 1. ~ 30.
+    const pattern3 = /^\d{4}. \d{1,2}. \d{1,2}. ~ \d{1,2}.$/
     // 4. 2022. 10. 27. ~ 30. / 11:00~19:00
-    // 5. 2022. 10. 15.
-    temp = period.split(' ~ ');
-    console.log(temp);
+    // 4. 2022. 10. 21. ~ 25. / 10:00~18:00
+    const pattern4 = /^\d{4}. \d{1,2}. \d{1,2}. ~ \d{1,2}. \/ \d{1,2}:\d{1,2}\s{0,}~\s{0,}\d{1,2}:\d{1,2}$/
+    // 5. 2022. 9. 7. ~ 10. 20. / 10:00~17:00
+    const pattern5 = /^\d{4}. \d{1,2}. \d{1,2}. ~ \d{1,2}. \d{1,2}. \/ \d{1,2}:\d{1,2}\s{0,}~\s{0,}\d{1,2}:\d{1,2}$/
+    // 6. 2022. 10. 15.
+    const pattern6 = /^\d{4}. \d{1,2}. \d{1,2}.$/
+    // 7. 2022. 10. 23. / 10:00 ~ 17:00
+    const pattern7 = /^\d{4}. \d{1,2}. \d{1,2}. \/ \d{1,2}:\d{1,2}\s{0,}~|-\s{0,}\d{1,2}:\d{1,2}$/
+    // 8. 2022. 10. 22. / 10:00 - 17:00
+    const pattern8 = /^\d{4}. \d{1,2}. \d{1,2}. \/ \d{1,2}:\d{1,2}\s{0,}-\s{0,}\d{1,2}:\d{1,2}$/
 
-    // case 5
-    if (temp.length === 1) {
-        res[1] = temp[0];
-    }
-    // case 2
-    else if (temp[0].length === temp[1].length) {
-        res[0] = temp[0];
-        res[1] = temp[1];
-    }
-    else {
+    switch (true) {
+        case pattern1.test(period):
+            res[0] = from.trim()
+            res[1] = from.substring(0, 5).concat(to).trim()
+            break
+        case pattern2.test(period):
+            res[0] = splitted[0].trim()
+            res[1] = splitted[1].trim()
+            break
+        case pattern3.test(period):
+            res[0] = from.trim()
+            res[1] = from.substring(0, 8).concat(to).trim()
+            break
+        case pattern4.test(period):
+            const splitPat4 = period.split(' / ')
+            const datesPat4 = splitPat4[0].split('~')
+            const timesPat4 = splitPat4[1].split('~')
+
+            res[0] = datesPat4[0].concat(timesPat4[0])
+            res[1] = datesPat4[0].substring(0, 8).concat(datesPat4[1]).concat(' ' + timesPat4[1])
+            break
+        case pattern5.test(period):
+            const splitPat5 = period.split(' / ')
+            const datesPat5 = splitPat5[0].split('~')
+            const timesPat5 = splitPat5[1].split('~')
+
+            res[0] = datesPat5[0].concat(timesPat5[0])
+            res[1] = datesPat5[0].substring(0, 5).concat(datesPat5[1]).concat(' ' + timesPat5[1])
+            break
+        case pattern6.test(period):
+            res[1] = splitted[1]
+            break
+        case pattern7.test(period):
+            res[1] = period.substring(0, 14).concat(period.substring(8, 12))
+            break
+        case pattern8.test(period):
+
+            break
     }
 
-    // console.log("2022. 9. 23.".replace(/ /g, ''));
-    // console.log(new Date("2022. 9. 23.".replace(/ /g, '')))
     return res;
 }
-
-periodToFromTo('2022. 9. 23. ~ 2023. 1. 14.');
 
 const datasIntoJson = async () => {
     const detailUrlList = await fillDetailUrlArr();
@@ -93,7 +131,7 @@ const datasIntoJson = async () => {
     for (url of detailUrlList) {
         const html = await getHTML(url);
         const $ = cheerio.load(html.data);
-        // console.log($('.full:nth-child(1))').text());
+        const fromTo = periodToFromTo($('dd:nth-child(4)').text().replace(/\t|\n/g, ''))
 
         result.push({
             thmb: 'https://mcst.go.kr' + $('.culture_view_img img').attr('src'),
@@ -101,10 +139,11 @@ const datasIntoJson = async () => {
             ttl: $('.view_title').text(),
             rpr_dsc: $('.viewWarp > .view_con').text().replace(/\t|\n/g, ''),
             orgn_site: $('.full .link').text(),
-            opr_prd_from: null,
-            opr_prd_to: null,
+            opr_prd_from: fromTo[0] === undefined ? null : fromTo[0],
+            opr_prd_to: fromTo[1] === undefined ? null : fromTo[1],
         });
     }
+    console.log(result);
 
     return result;
 }
@@ -117,8 +156,8 @@ const main = async () => {
         }
     })
 
-    client.post('http://172.30.1.36:7070/admin/activity/json', JSON.stringify(temp))
-        .then(res => console.log(res.status))
+    // client.post('http://172.30.1.36:7070/admin/activity/json', JSON.stringify(temp))
+    //     .then(res => console.log(res.status))
 }
 
-// main();
+main();
